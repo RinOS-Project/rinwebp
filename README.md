@@ -43,3 +43,18 @@ published. RinOS integrates these sources through the parent image build.
 This repository has no standalone build or test target; parent test evidence
 must be tracked separately.
 
+## Public API contract
+
+| Requirement | Contract |
+| --- | --- |
+| Purpose | RinWebP contains a WebP decode implementation used by RinImage for supported WebP image input. |
+| Supported API | The decoder facade in `src/webp/decode.h` provides `WebPGetInfo` and `WebPDecodeBGRAInto` plus diagnostic state. It is an internal source-level integration interface; use RinImage as the supported public application interface. |
+| Unsupported API | This repository does not promise a stable independent public ABI. The decoder supports the documented VP8/VP8L subset, required VP8X container features, supported ALPH modes, and only the first ANMF frame; other profiles are unsupported. |
+| ownership | Input bytes and caller-provided BGRA output are borrowed for the call and remain caller-owned. Do not retain pointers returned as transient diagnostic state beyond their documented lifetime. |
+| thread-safety | Separate decoder calls with separate buffers are intended to be independent. Global diagnostic state is shared and must not be relied on concurrently; use per-call success/failure where possible. |
+| limits | The decoder does not expose configurable direct input, dimension, or CPU deadline limits. Applications should use RinImage, whose policy and surrounding resource limits are the supported boundary. |
+| errors | Invalid, unsupported, or truncated input returns failure and may set diagnostics. Output is usable only after successful decoding. |
+| ABI stability | `src/webp/decode.h` is not a stable public ABI. Internal symbols may change; consumers should integrate through RinImage and rebuild with the matching tree. |
+| security | Treat WebP data as untrusted and bound work at the application/image pipeline boundary. The decoder's lack of a configurable CPU deadline means it should not be used as an unbounded standalone service. |
+| build | Build as part of the RinOS image pipeline. No independent public install/build workflow is documented. |
+| test | No standalone test command is documented. Validate through the RinImage integration targets. |
