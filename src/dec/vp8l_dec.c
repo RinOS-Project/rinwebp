@@ -6,12 +6,18 @@
 #include <stdint.h>
 #include <stddef.h>
 
-/* Freestanding: declare libc functions manually to avoid C++ header conflicts */
+/* Freestanding: declare libc functions manually to avoid C++ header conflicts. */
+#ifdef __cplusplus
+extern "C" {
+#endif
 extern void* malloc(size_t);
 extern void  free(void*);
 extern void* memset(void*, int, size_t);
 extern void* memcpy(void*, const void*, size_t);
 extern int snprintf(char*, size_t, const char*, ...);
+#ifdef __cplusplus
+}
+#endif
 
 /* ══════════════════════════════════════════════════════════════════════
  *  Constants
