@@ -1408,8 +1408,7 @@ static void vp8l_inverse_color_indexing(uint32_t* pixels, int width, int height,
     /* Unpack and palette-lookup */
     if (width_bits > 0) {
         /* Pixels are packed: multiple palette indices per green channel */
-        int pixels_per_entry = 1 << width_bits;
-        int mask = (1 << (8 >> width_bits)) - 1;
+        int mask;
         /* Hmm, actually for color indexing:
          * bits_per_pixel = 8 / pixels_per_entry
          * For palette_size <= 2:  pixels_per_entry = 8, bits_per_pixel = 1
