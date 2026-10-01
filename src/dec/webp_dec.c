@@ -9,6 +9,7 @@
  */
 
 #include "../webp/decode.h"
+#include <limits.h>
 
 /* VP8L (lossless) and VP8 (lossy) decoders */
 extern int vp8l_decode(const uint8_t* data, size_t data_size,
@@ -66,6 +67,13 @@ static void set_error(WebPDecodeError err, const uint8_t* chunk_tag) {
     if (err == WEBP_DEC_OK) {
         g_last_backend_stage = "ok";
     }
+}
+
+static int checked_size_mul(size_t left, size_t right, size_t* result) {
+    if (!result) return 0;
+    if (right != 0 && left > (size_t)-1 / right) return 0;
+    *result = left * right;
+    return 1;
 }
 
 const char* rin_webp_get_last_error_reason(void) {
@@ -307,8 +315,9 @@ static int decode_alph_plane(const uint8_t* alph_payload, size_t alph_size,
         return 0;
     }
 
-    needed_alpha = (size_t)alpha_stride * (size_t)height;
-    if (needed_alpha == 0 || needed_alpha > alpha_plane_size) {
+    if (!checked_size_mul((size_t)alpha_stride, (size_t)height,
+                          &needed_alpha) ||
+        needed_alpha == 0 || needed_alpha > alpha_plane_size) {
         set_error(WEBP_DEC_ERR_ALPH_PAYLOAD, (const uint8_t*)"ALPH");
         g_last_backend_stage = "alph-plane-size";
         return 0;
@@ -320,10 +329,11 @@ static int decode_alph_plane(const uint8_t* alph_payload, size_t alph_size,
     if (out_filter) *out_filter = filter;
 
     if (method == 0) {
-        size_t raw_size = (size_t)width * (size_t)height;
+        size_t raw_size;
         int y;
         g_last_backend_stage = "alph-raw";
-        if (alph_size < 1u + raw_size) {
+        if (!checked_size_mul((size_t)width, (size_t)height, &raw_size) ||
+            raw_size > (size_t)-1 - 1u || alph_size < 1u + raw_size) {
             set_error(WEBP_DEC_ERR_ALPH_PAYLOAD, (const uint8_t*)"ALPH");
             return 0;
         }
@@ -359,7 +369,14 @@ static int unfilter_alph_plane(uint8_t* alpha_plane, size_t alpha_plane_size,
                                uint8_t filter) {
     int x, y;
     if (!alpha_plane || width <= 0 || height <= 0 || alpha_stride < width) return 0;
-    if ((size_t)alpha_stride * (size_t)height > alpha_plane_size) return 0;
+    {
+        size_t needed_alpha;
+        if (!checked_size_mul((size_t)alpha_stride, (size_t)height,
+                              &needed_alpha) ||
+            needed_alpha > alpha_plane_size) {
+            return 0;
+        }
+    }
     g_last_backend_stage = "alph-filter";
     if (filter == 0) return 1;
     if (filter > 3) {
@@ -412,14 +429,20 @@ static int apply_alph_payload(const uint8_t* alph_payload, size_t alph_size,
     if (!alph_payload || alph_size < 1 || !output || width <= 0 || height <= 0 || stride <= 0) {
         return 0;
     }
-    if ((size_t)stride * (size_t)height > output_size) {
+    if (!checked_size_mul((size_t)stride, (size_t)height, &alpha_size) ||
+        alpha_size > output_size) {
         set_error(WEBP_DEC_ERR_ALPH_PAYLOAD, (const uint8_t*)"ALPH");
         g_last_backend_stage = "alph-output-size";
         return 0;
     }
 
     alpha_stride = (size_t)width;
-    alpha_size = alpha_stride * (size_t)height;
+    if (!checked_size_mul(alpha_stride, (size_t)height, &alpha_size) ||
+        alpha_size == 0) {
+        set_error(WEBP_DEC_ERR_OOM, (const uint8_t*)"ALPH");
+        g_last_backend_stage = "alph-size";
+        return 0;
+    }
     alpha_plane = (uint8_t*)malloc(alpha_size);
     if (!alpha_plane) {
         set_error(WEBP_DEC_ERR_OOM, (const uint8_t*)"ALPH");
@@ -567,9 +590,11 @@ static int decode_first_anmf(const uint8_t* anmf_payload, size_t anmf_size,
     }
 
     {
-        size_t frame_stride = (size_t)frame_w * 4u;
-        size_t frame_size = frame_stride * (size_t)frame_h;
-        if (frame_size == 0 || frame_size > (size_t)-1 / 2u) {
+        size_t frame_stride;
+        size_t frame_size;
+        if (!checked_size_mul((size_t)frame_w, 4u, &frame_stride) ||
+            !checked_size_mul(frame_stride, (size_t)frame_h, &frame_size) ||
+            frame_size == 0 || frame_stride > (size_t)INT_MAX) {
             set_error(WEBP_DEC_ERR_OOM, (const uint8_t*)"ANMF");
             return 0;
         }

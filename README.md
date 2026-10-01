@@ -30,6 +30,10 @@ describe the most recent process-global decode state. Calls that need these
 diagnostics must be serialized, with the accessors read immediately after the
 corresponding call; concurrent calls race on that state.
 
+All temporary byte-count products used by ALPH and animated-frame staging are
+checked before allocation or buffer access. Overflow, zero-sized staging, and
+strides that cannot be represented by the decoder backend fail closed.
+
 The direct API has no configurable input, pixel, allocation, or CPU budget.
 Use RinImage's default limits (64 MiB input, 4096 by 4096 dimensions,
 16,777,216 pixels, and 64 MiB output) for untrusted image input, and lower
